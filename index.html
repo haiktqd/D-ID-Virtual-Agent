@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-ID Standard Avatar Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        #videoContainer {
+            width: 320px;
+            height: 360px;
+            position: relative;
+            background: url('https://chichbong.com/gif/loading.jpg') center center no-repeat;
+            background-size: cover;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            display: none; /* Ban đầu ẩn video, hiển thị ảnh nền */
+        }
+    </style>
+</head>
+<body>
+    <h1>D-ID Standard Avatar Demo</h1>
+    <input type="text" id="textInput" placeholder="Nhập câu hỏi..." />
+    <button id="btnSpeak">Hỏi</button>
+
+    <div id="videoContainer">
+        <video id="agentVideo" playsinline autoplay muted></video>
+    </div>
+
+    <script>
+        document.getElementById("btnSpeak").addEventListener("click", async () => {
+            const text = document.getElementById("textInput").value.trim();
+            if (!text) return;
+
+            try {
+                const answer = await askOpenAI(text);
+                await createDIDVideo(answer);
+            } catch (err) {
+                console.error("Lỗi khi tạo video từ D-ID:", err);
+            }
+        });
+
+        async function askOpenAI(text) {
+            const response = await fetch("https://backend.chichbong.com:3008/ask", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text })
+            });
+
+            if (!response.ok) {
+                throw new Error(`OpenAI request failed: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log("DEBUG: OpenAI Answer:", data.answer);
+            return data.answer;
+        }
+
+        async function createDIDVideo(text) {
+            const response = await fetch("https://backend.chichbong.com:3008/d-id/talks", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text })
+            });
+
+            if (!response.ok) {
+                throw new Error(`D-ID request failed: ${response.status}`);
+            }
+
+            const data = await response.json();
+            if (!data.video_url) {
+                throw new Error("Không tìm thấy URL video từ D-ID.");
+            }
+
+            console.log("DEBUG: D-ID Video URL:", data.video_url);
+
+            // Cập nhật video
+            const videoEl = document.getElementById("agentVideo");
+            videoEl.setAttribute("crossorigin", "anonymous");
+            videoEl.src = data.video_url;
+            videoEl.type = "video/mp4";
+            videoEl.autoplay = true;
+            videoEl.playsInline = true;
+            videoEl.muted = false;
+            videoEl.load();
+
+            // Khi video đã tải đủ, hiển thị và ẩn ảnh nền
+            videoEl.addEventListener("canplaythrough", () => {
+                console.log("DEBUG: Video đã tải đủ để phát.");
+                videoEl.play().catch(error => console.error("Lỗi phát video:", error));
+            });
+
+            videoEl.addEventListener("loadeddata", () => {
+                videoEl.style.display = "block";
+                document.getElementById("videoContainer").style.background = "none";
+            });
+        }
+    </script>
+</body>
+</html>
